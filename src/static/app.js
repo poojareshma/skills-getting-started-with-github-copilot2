@@ -41,7 +41,51 @@ document.addEventListener("DOMContentLoaded", () => {
         if (details.participants && details.participants.length > 0) {
           details.participants.forEach((p) => {
             const li = document.createElement("li");
-            li.textContent = p;
+            li.innerHTML = `
+              <span>${p}</span>
+              <span class="delete-participant" title="Remove participant">×</span>
+            `;
+            
+            // Add click handler for delete button
+            const deleteBtn = li.querySelector(".delete-participant");
+            deleteBtn.addEventListener("click", async () => {
+              try {
+                const response = await fetch(`/activities/${encodeURIComponent(name)}/unregister?email=${encodeURIComponent(p)}`, {
+                  method: "POST"
+                });
+                
+                if (response.ok) {
+                  // Remove the participant from the list
+                  li.remove();
+                  
+                  // If no participants left, show the "No participants" message
+                  if (participantsList.children.length === 0) {
+                    const emptyLi = document.createElement("li");
+                    emptyLi.textContent = "No participants yet";
+                    emptyLi.className = "no-participants";
+                    participantsList.appendChild(emptyLi);
+                  }
+                  
+                  // Update spots available
+                  const spotsElement = activityCard.querySelector("p:nth-child(4)");
+                  const currentSpots = parseInt(spotsElement.textContent.match(/\d+/)[0]);
+                  spotsElement.innerHTML = `<strong>Availability:</strong> ${currentSpots + 1} spots left`;
+                } else {
+                  const error = await response.json();
+                  messageDiv.textContent = error.detail || "Failed to remove participant";
+                  messageDiv.className = "error";
+                  messageDiv.classList.remove("hidden");
+                  setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+                }
+              } catch (error) {
+                console.error("Error removing participant:", error);
+                messageDiv.textContent = "Failed to remove participant. Please try again.";
+                messageDiv.className = "error";
+                messageDiv.classList.remove("hidden");
+                setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+              }
+            });
+            
             participantsList.appendChild(li);
           });
         } else {
@@ -84,6 +128,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh the activities list to show the new participant
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
